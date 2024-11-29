@@ -1,6 +1,6 @@
-# Real Estate Community Token (RECT) Smart Contract
+# Stacks Real Estate Community Token (RECT) Smart Contract
 
-The **Real Estate Community Token (RECT)** is a decentralized smart contract designed for property tokenization and governance. It facilitates secure management of property tokens, voting on proposals, rental income distribution, and community participation with enhanced validation and error handling.
+The ** Stacks Real Estate Community Token (RECT)** is a decentralized smart contract designed for property tokenization and governance. It facilitates secure management of property tokens, voting on proposals, rental income distribution, and community participation with enhanced validation and error handling.
 
 ---
 
