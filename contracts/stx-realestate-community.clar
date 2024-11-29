@@ -94,3 +94,102 @@
     )
   )
 )
+
+;; Retrieve current tracked block height
+(define-read-only (get-contract-block-height)
+  (let 
+    (
+      (current-tracking 
+        (default-to 
+          { current-block: u0, last-updated-block: u0 }
+          (map-get? block-heights { contract-identifier: tx-sender })
+        )
+      )
+    )
+    (get current-block current-tracking)
+  )
+)
+
+;; Helper function to check for numeric overflow
+(define-private (check-add (a uint) (b uint))
+  (let
+    (
+      (sum (+ a b))
+    )
+    (asserts! (>= sum a) err-overflow)
+    (ok sum)
+  )
+)
+
+(define-map properties
+  { property-id: uint }
+  {
+    total-value: uint,
+    rental-income: uint,
+    management-wallet: principal,
+    token-supply: uint,
+    is-active: bool
+  }
+)
+
+
+;; Create a new property token with enhanced validation
+(define-public (create-property-token 
+  (property-id uint)
+  (total-value uint)
+  (initial-supply uint)
+  (management-wallet principal)
+)
+  (begin
+    ;; Existing owner check
+    (asserts! (is-eq tx-sender contract-owner) err-not-owner)
+    
+    ;; New validation checks
+    (asserts! (> total-value u0) err-zero-value)
+    (asserts! (> initial-supply u0) err-invalid-supply)
+    (asserts! (>= total-value initial-supply) err-invalid-supply)
+    
+    ;; Check property doesn't exist
+    (asserts! 
+      (is-none (map-get? properties { property-id: property-id }))
+      err-property-exists
+    )
+    
+    ;; Create property with validated values
+    (map-set properties 
+      { property-id: property-id }
+      {
+        total-value: total-value,
+        rental-income: u0,
+        management-wallet: management-wallet,
+        token-supply: initial-supply,
+        is-active: true
+      }
+    )
+    
+    ;; Safe token minting
+    (match (ft-mint? real-estate-community-token initial-supply tx-sender)
+      success (ok true)
+      error (err error)
+    )
+  )
+)
+
+(define-map voting-power
+    { property-id: uint, voter: principal }
+    { token-balance: uint }
+)
+
+
+(define-map property-votes
+  { 
+    property-id: uint, 
+    proposal-id: uint 
+  }
+  {
+    yes-votes: uint,
+    no-votes: uint,
+    proposal-description: (string-utf8 500),
+    voting-deadline: uint
+  }
+)
