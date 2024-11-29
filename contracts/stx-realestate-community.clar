@@ -295,3 +295,97 @@
   )
 )
 
+
+;; Vote on a property management proposal
+(define-public (vote-on-proposal
+  (property-id uint)
+  (proposal-id uint)
+  (vote bool)
+)
+  (let 
+    (
+      (proposal (unwrap! 
+        (map-get? property-votes 
+          { 
+            property-id: property-id, 
+            proposal-id: proposal-id 
+          }
+        ) 
+        err-invalid-vote
+      ))
+      (voter-power (default-to 
+        { token-balance: u0 } 
+        (map-get? voting-power 
+          { 
+            property-id: property-id, 
+            voter: tx-sender 
+          }
+        )
+      ))
+    )
+    ;; Ensure voting is still open
+    (asserts! 
+      (< (var-get current-block-height) (get voting-deadline proposal)) 
+      err-unauthorized
+    )
+    
+    ;; Record vote with voting power
+    (if vote
+      (map-set property-votes
+        { 
+          property-id: property-id, 
+          proposal-id: proposal-id 
+        }
+        (merge proposal { 
+          yes-votes: (+ (get yes-votes proposal) (get token-balance voter-power)) 
+        })
+      )
+      (map-set property-votes
+        { 
+          property-id: property-id, 
+          proposal-id: proposal-id 
+        }
+        (merge proposal { 
+          no-votes: (+ (get no-votes proposal) (get token-balance voter-power)) 
+        })
+      )
+    )
+    
+    (ok true)
+  )
+)
+
+;; Enhanced rental income distribution
+(define-public (distribute-rental-income
+  (property-id uint)
+  (total-income uint)
+)
+  (let 
+    (
+      (property (unwrap! 
+        (map-get? properties { property-id: property-id }) 
+        err-property-not-found
+      ))
+    )
+    ;; Enhanced validation
+    (asserts! (> total-income u0) err-zero-value)
+    (asserts! 
+      (is-eq tx-sender (get management-wallet property)) 
+      err-unauthorized
+    )
+    
+    ;; Safe income addition
+    (match (check-add (get rental-income property) total-income)
+      success (begin
+        (map-set properties 
+          { property-id: property-id }
+          (merge property { rental-income: success })
+        )
+        (ok true)
+      )
+      error (err error)
+    )
+  )
+)
+
+
