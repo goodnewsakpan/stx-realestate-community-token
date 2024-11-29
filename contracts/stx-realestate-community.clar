@@ -193,3 +193,105 @@
     voting-deadline: uint
   }
 )
+
+
+;; Enhanced purchase tokens function
+(define-public (purchase-tokens 
+  (property-id uint)
+  (token-amount uint)
+)
+  (let 
+    (
+      (property (unwrap! 
+        (map-get? properties { property-id: property-id }) 
+        err-property-not-found
+      ))
+      (current-supply (get token-supply property))
+    )
+    ;; Enhanced validation
+    (asserts! (> token-amount u0) err-zero-value)
+    (asserts! (get is-active property) err-unauthorized)
+    
+    ;; Check if purchase would exceed total supply
+    (asserts! (<= token-amount current-supply) err-invalid-supply)
+    
+    ;; Safe token transfer
+    (match (ft-transfer? 
+      real-estate-community-token 
+      token-amount 
+      tx-sender 
+      (get management-wallet property)
+    )
+      success (begin
+        ;; Update voting power safely
+        (map-set voting-power 
+          { 
+            property-id: property-id, 
+            voter: tx-sender 
+          }
+          {
+            token-balance: token-amount
+          }
+        )
+        (ok true)
+      )
+      error (err error)
+    )
+  )
+)
+
+;; Enhanced proposal submission
+(define-public (submit-proposal
+  (property-id uint)
+  (description (string-utf8 500))
+  (voting-period uint)
+)
+  (let 
+    (
+      (property (unwrap! 
+        (map-get? properties { property-id: property-id }) 
+        err-property-not-found
+      ))
+      (proposal-id (var-get current-block-height))
+    )
+    ;; Enhanced validation
+    (asserts! (get is-active property) err-unauthorized)
+    (asserts! (> voting-period u0) err-invalid-period)
+    
+    ;; Ensure proposer has voting power
+    (asserts! 
+      (> 
+        (get token-balance 
+          (default-to 
+            { token-balance: u0 }
+            (map-get? voting-power { property-id: property-id, voter: tx-sender })
+          )
+        ) 
+        u0
+      ) 
+      err-no-voting-power
+    )
+    
+    ;; Create proposal with safe arithmetic
+    (let
+      (
+        (deadline (unwrap! (check-add (var-get current-block-height) voting-period) err-overflow))
+      )
+      (map-set property-votes
+        { 
+          property-id: property-id, 
+          proposal-id: proposal-id 
+        }
+        {
+          yes-votes: u0,
+          no-votes: u0,
+          proposal-description: description,
+          voting-deadline: deadline
+        }
+      )
+      
+      (ok proposal-id)
+    )
+  )
+)
+
